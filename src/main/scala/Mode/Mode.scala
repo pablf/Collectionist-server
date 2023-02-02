@@ -8,7 +8,7 @@ This class contains generic methods to print, get input and actualize the state 
 
 import Controller.Event.{ChangeMode, NullEvent, TerminateEvent}
 import Controller.{Event, ExEvent}
-import zio.Console.readLine
+import zio.Console.{printLine, readLine}
 import zio.{ZIO, _}
 
 import java.io.IOException
@@ -19,9 +19,12 @@ trait Mode[Type <: ModeType] {
   // OUTPUT
   //var mustReprint: Boolean = true
   def reprint(): ZIO[Any, IOException, Unit] = for {
-    _ <- ZIO.ifZIO(mustReprint.get)(onTrue = print(), onFalse = ZIO.unit)
+    _ <- ZIO.ifZIO(mustReprint.get)(onTrue = clean() *> print(), onFalse = ZIO.unit)
     _ <- mustReprint.set(false)
   }yield()
+
+  val CleanCode = "\u001b[2J\u001b[;H"
+  def clean(): ZIO[Any, IOException, Unit] = ZIO.succeed(println(CleanCode))
 
   def print(): ZIO[Any, IOException, Unit]
 
@@ -36,7 +39,6 @@ trait Mode[Type <: ModeType] {
   // Take event from queue, execute it and get an event in return
   def actualize(): IO[Throwable, Boolean] = for {
     event <- eventQueue.take
-
     //actualize state: mustReprint and shouldContinue
     _ <- mustReprint.set(true)
 
@@ -50,7 +52,7 @@ trait Mode[Type <: ModeType] {
         lastEvent = event
         ZIO.succeed(false)
       }
-      case event: NullEvent[Type] => ZIO.succeed(true)
+      case _: NullEvent[Type] => ZIO.succeed(true)
       case event: ExEvent[Type] => for {
         ev <- ZIO.succeed(event.execute())
         _ <- eventQueue.offer(ev)

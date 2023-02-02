@@ -30,14 +30,12 @@ case class LoginMode(override val eventQueue: zio.Queue[Event[LoginType]], overr
 
   def command(tag: String): Event[LoginType] = {
     tag match {
-      case "N" => LoginEvent.CreateUser(tag)
+      case "N" => LoginEvent.NewUser()
       case _ => state match {
         case _: LoginState.GetUser => LoginEvent.User(tag)
-        case _: LoginState.GetPassword => {
-          LoginEvent.Password(tag)
-        }
+        case _: LoginState.GetPassword => LoginEvent.Password(tag)
         case _: LoginState.Wrong => LoginEvent.NewTry()
-        case _: LoginState.CreateUser => LoginEvent.User(tag)
+        case _: LoginState.CreateUser => LoginEvent.CreateUser(tag)
         case _: LoginState.CreatePassword => LoginEvent.CreateUser(tag)
       }
     }
@@ -79,6 +77,13 @@ case class LoginMode(override val eventQueue: zio.Queue[Event[LoginType]], overr
       }
     }
 
+    final case class NewUser() extends LoginEvent {
+      def execute(): Event[LoginType] = {
+        state = LoginState.CreateUser()
+        NLE
+      }
+    }
+
     final case class CreateUser(tag: String) extends LoginEvent {
       def execute(): Event[LoginType] = {
         if (state == LoginState.CreateUser()) {
@@ -87,9 +92,10 @@ case class LoginMode(override val eventQueue: zio.Queue[Event[LoginType]], overr
         }
         else {
           password = tag
-          // create new user
+          users.add(DB.User(user, password))
+
+          state = LoginState.GetUser()
         }
-        state = LoginState.GetUser()
 
         NLE
       }

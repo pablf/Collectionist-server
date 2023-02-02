@@ -12,23 +12,28 @@ import zio.{IO, Ref, ZIO}
 import java.io.IOException
 import scala.collection.mutable.ListBuffer
 
+/*
+The AppMode is the library manager itself. It serves as a hub for different functionalities given by subclasses of App.Window
+There are AddWindow, ConfigurationWindow, RemoveWindow, RecWindow and SearchWindow.
+ */
+
 case class AppMode(val user: Profile, override val eventQueue: zio.Queue[Event[AppType]], override val mustReprint: zio.Ref[Boolean],
                    override val continue: Ref[Boolean]) extends Mode[AppType] {
   var mainWindow: Int = 0
   var updated: Boolean = false
 
-  val bookdb: BookDB = BookDB("a")
+  val bookdb: BookDB = BookDB("a", "bookdb")
 
   var windows: ListBuffer[Window] = ListBuffer(SearchWindow(this))
-  val recommender: Recommender = new Recommender()
-  val recWindow: RecWindow = new RecWindow(recommender)
+  //val recommender: Recommender = new Recommender(user)
+  //val recWindow: RecWindow = new RecWindow(recommender)
 
 
   //print routine...
   def print(): ZIO[Any, IOException, Unit] = for {
     _ <- header()
     _ <- windows(mainWindow).print()
-    _ <- recWindow.print()
+    //_ <- recWindow.print()
     _ <- tabs(windows)
     _ <- windows(mainWindow).printKeymap()
     _ <- standardKeymap()

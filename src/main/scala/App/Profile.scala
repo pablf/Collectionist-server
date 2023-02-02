@@ -4,17 +4,19 @@ import DB.{BookDB, User, UserDB}
 
 class Profile(val name: String) {
   // DB of books that make profile of users
-  val readBooks: BookDB
-  val toReadBooks: BookDB
+  val readBooks: BookDB = BookDB("readBooks", name ++ "/readBooks")
+  val toReadBooks: BookDB = BookDB("toReadBooks", name ++ "/toReadBooks")
 
 
-  val favouriteBooks: BookDB
-  val likedBooks: BookDB
-  val dislikedBooks: BookDB
-  val collectionsBooks: List[BookDB]
-  loadDb()
+  val favouriteBooks: BookDB = BookDB("favouriteBooks", name ++ "/favouriteBooks")
+  val likedBooks: BookDB = BookDB("likedBooks", name ++ "/likedBooks")
+  val dislikedBooks: BookDB = BookDB("dislikedBooks", name ++ "/dislikedBooks")
+  val collectionsBooks: List[BookDB] = loadCollections()
 
-  def loadDb(): Unit = ???
+  //TODO
+  def loadCollections(): List[BookDB] = {
+    List()
+  }
 
   def checkPass(pass: String): Boolean = {
     val users = UserDB("users")
@@ -23,7 +25,7 @@ class Profile(val name: String) {
   }
 
   def changePass(newPass: String): Unit = {
-    val users = UserDB()
+    val users = UserDB("USERS")
     users.update(User(name, newPass))
   }
   def delete(): Unit = ???

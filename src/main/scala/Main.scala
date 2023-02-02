@@ -1,11 +1,11 @@
 import Controller.Event._
-import Mode.{AppMode, Mode, ModeType}
+import Mode.{AppMode, LoginMode, Mode, ModeType}
 import zio.Console.printLine
 import zio._
 
 
 object Main extends ZIOAppDefault {
-  def run = loop(AppMode("ho"))
+  def run = loop(LoginMode())
 
   //loop method execute a mood and changes between modes
   //basic structure: print, wait for new event, act in response to new event
@@ -17,10 +17,10 @@ object Main extends ZIOAppDefault {
 
     _ <- f1.interrupt
     //_ <- f2.interrupt
-    _ <- f2.join.onInterrupt(ZIO.debug("paroo")).resurrect.ignore.disconnect.timeout(100.millis)
+    _ <- f2.join.resurrect.ignore.disconnect.timeout(100.millis)
 
     //_ <- ZIO.when(timeout.isEmpty)(f2.interruptFork)
-    _ <- printLine(mode.continue.get)
+    //_ <- printLine(mode.continue.get)
 
     //loop with new mode or end loop
     lastEvent <- ZIO.succeed(mode.lastEvent)

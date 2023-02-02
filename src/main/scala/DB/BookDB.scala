@@ -15,14 +15,13 @@ class Books(tag: Tag) extends Table[Book](tag, "BOOKS") {
   def * = (name, author, genre).mapTo[Book]
 }
 
-case class BookDB(tag: String) {//extends DB[Book] {
+case class BookDB(tag: String, path: String) {//extends DB[Book] {
   type TType = Books
   val tableQuery = TableQuery[Books]
   val conf = "books"
-  val db = Database.forConfig("books")
+  val db = Database.forURL("jdbc:h2:./db/" ++ path, driver = "org.h2.Driver")
   db.run(tableQuery.schema.create)
 
-  def path: String = ???
 
   def search(searchTerm: String): List[Book] = {
     val q = tableQuery.filter(_.name === searchTerm).result

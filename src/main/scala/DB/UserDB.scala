@@ -6,7 +6,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 
-case class User(name: String, val password: String) extends Serializable
+case class User(val name: String, val password: String) extends Serializable
 
 class Users(tag: Tag) extends Table[User](tag, "UserS") {
   def name = column[String]("NAME")
@@ -19,7 +19,7 @@ case class UserDB(tag: String) {//extends DB[User] {
   type TType = Users
   val tableQuery = TableQuery[Users]
   val conf = "Users"
-  val db = Database.forConfig("Users")
+  val db = Database.forConfig("users")
   db.run(tableQuery.schema.create)
 
   def path: String = ???

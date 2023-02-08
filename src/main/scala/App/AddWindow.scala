@@ -1,16 +1,15 @@
 package App
 
 
-import Controller.Event.NullEvent
+import Controller.Event.{NAE, NullEvent}
 import Controller.{Event, ExEvent}
 import Mode.AppMode
 import Mode.ModeType.AppType
 import State.AddState
 import zio.Console.printLine
-import zio.ZIO
+import zio.{Task, ZIO}
 
 import scala.collection.mutable.Map
-
 import java.io.IOException
 
 case class AddWindow(val mode: AppMode) extends Window {
@@ -27,7 +26,7 @@ case class AddWindow(val mode: AppMode) extends Window {
       case AddState.Enter(_, false) => printLine("   Add a new book! Enter the parameters:")
     }
     _ <- ZIO.foreach(fields)(field => printLine(s"${printSelector(field)} ${field.capitalize}: ${bookMap(field)}"))
-    _ <- printLine("     |Add Book [G]|")
+    _ <- printLine("     > Add Book [A]    > Remove Book [R]")
   } yield ()
 
   def printSelector(field: String): String = if(isSelectedField(field)) "  ->  " else "    "
@@ -42,16 +41,16 @@ case class AddWindow(val mode: AppMode) extends Window {
   def keymap(tag: String): Event[AppType] = tag match {
     case "u" => AddEvent.SelectField(true)
     case "d" => AddEvent.SelectField(false)
-    case "G" => AddEvent.AddBook()
+    case "A" => AddEvent.AddBook()
+    case "R" => AddEvent.RemoveBook()
     case _ => AddEvent.SetBook(tag)
   }
 
   trait AddEvent extends ExEvent[AppType]
-  val NAE = NullEvent[AppType]()
 
   object AddEvent {
     case class SetBook(tag: String) extends AddEvent {
-      def execute(): Event[AppType] = {
+      def execute(): Task[Event[AppType]] = {
         state match {
           case AddState.Enter(field, _) => bookMap(field) = tag
         }
@@ -63,17 +62,35 @@ case class AddWindow(val mode: AppMode) extends Window {
 
 
     case class AddBook() extends AddEvent {
-      def execute(): Event[AppType] = {
+      def execute(): Task[Event[AppType]] = {
         mode.bookdb.add(Book.make(bookMap))
         state = state match {
           case AddState.Enter(field, _) => AddState.Enter(field, true)
         }
+        bookMap("name") = ""
+        bookMap("author") = ""
+        bookMap("genre") = ""
+        state = AddState.Enter("author", false)
+        NAE
+      }
+    }
+
+    case class RemoveBook() extends AddEvent {
+      def execute(): Task[Event[AppType]] = {
+        mode.bookdb.removeAll(Book.make(bookMap))
+        state = state match {
+          case AddState.Enter(field, _) => AddState.Enter(field, true)
+        }
+        bookMap("name") = ""
+        bookMap("author") = ""
+        bookMap("genre") = ""
+        state = AddState.Enter("author", false)
         NAE
       }
     }
 
     case class SelectField(up: Boolean) extends AddEvent {
-      def execute(): Event[AppType] = if(up){
+      def execute(): Task[Event[AppType]] = if(up){
         state = state match {
           case AddState.Enter("genre", v) => AddState.Enter("author", v)
           case AddState.Enter(_, v) => AddState.Enter("name", v)

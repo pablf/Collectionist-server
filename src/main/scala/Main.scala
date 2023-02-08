@@ -1,11 +1,20 @@
+import App.Profile
 import Controller.Event._
 import Mode.{AppMode, LoginMode, Mode, ModeType}
-import zio.Console.printLine
 import zio._
+import org.fusesource.jansi.AnsiConsole
 
 
 object Main extends ZIOAppDefault {
-  def run = loop(LoginMode())
+  def run =
+    ZIO.attempt(AnsiConsole.systemInstall()) *>
+      ZIO.attempt(new Profile("YO", 0)).flatMap(profile => loop(AppMode(profile))) *>
+      ZIO.attempt(AnsiConsole.systemUninstall())
+
+
+  def run1 = loop(LoginMode())
+
+
 
   //loop method execute a mood and changes between modes
   //basic structure: print, wait for new event, act in response to new event
@@ -13,7 +22,7 @@ object Main extends ZIOAppDefault {
     mode <- zioMode                                                                  // get mode
     f1 <- mode.reprint().repeat(Schedule.spaced(1000.millis)).fork                   // output fiber
     f2 <- mode.catchEvent().repeat(Schedule.forever).fork                            // input fiber
-    _ <- mode.actualize().repeatWhileEquals(true)                                  // process events
+    _ <- mode.actualize().repeatWhileEquals(true)                                    // process events
 
     _ <- f1.interrupt
     //_ <- f2.interrupt

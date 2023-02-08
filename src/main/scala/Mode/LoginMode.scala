@@ -44,13 +44,18 @@ case class LoginMode(override val eventQueue: zio.Queue[Event[LoginType]], overr
 
 
   def checkUser(): Boolean = users.search(user).nonEmpty
-  def checkPassword(): Boolean = users.search(user).head.password == password
+
+  // gives -1 if wrong password, gives id of user otherwise
+  def checkPassword(): Int = {
+    val profile = users.search(user).head
+    if(profile.password == password) profile.id else -1
+  }
 
 
 
   object LoginEvent {
     final case class User(tag: String) extends LoginEvent {
-      def execute(): Event[LoginType] = {
+      def execute(): Task[Event[LoginType]] = {
 
         user = tag
         state match {
@@ -61,38 +66,40 @@ case class LoginMode(override val eventQueue: zio.Queue[Event[LoginType]], overr
       }
     }
 
+    //TODO añadir id a user
     final case class Password(tag: String) extends LoginEvent {
-      def execute(): Event[LoginType] = {
+      def execute(): Task[Event[LoginType]] = {
         password = tag
-        if (checkPassword()) {
-          ToApp()
+        val id = checkPassword()
+        if (id >=0) {
+          ZIO.attempt(new Profile(user, id)).flatMap( profile => ZIO.succeed(ToApp(profile)))
         } else NLE
       }
     }
 
     final case class NewTry() extends LoginEvent {
-      def execute(): Event[LoginType] = {
+      def execute(): Task[Event[LoginType]] = {
         state = LoginState.GetUser()
         NLE
       }
     }
 
     final case class NewUser() extends LoginEvent {
-      def execute(): Event[LoginType] = {
+      def execute(): Task[Event[LoginType]] = {
         state = LoginState.CreateUser()
         NLE
       }
     }
 
     final case class CreateUser(tag: String) extends LoginEvent {
-      def execute(): Event[LoginType] = {
+      def execute(): Task[Event[LoginType]] = {
         if (state == LoginState.CreateUser()) {
           user = tag
           state = LoginState.CreatePassword()
         }
         else {
           password = tag
-          users.add(DB.User(user, password))
+          users.add(DB.User(user, password, 0))
 
           state = LoginState.GetUser()
         }
@@ -102,9 +109,9 @@ case class LoginMode(override val eventQueue: zio.Queue[Event[LoginType]], overr
     }
   }
 
-    case class ToApp() extends ChangeMode[LoginType]{
+    case class ToApp(val profile: Profile) extends ChangeMode[LoginType]{
       type nextType = AppType
-      val nextMode = AppMode(new Profile(user))
+      val nextMode = AppMode(profile)
     }
 
 

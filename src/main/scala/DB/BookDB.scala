@@ -11,8 +11,9 @@ class Books(tag: Tag) extends Table[Book](tag, "BOOKS") {
   def name = column[String]("NAME")
   def author = column[String]("AUTHOR")
   def genre = column[String]("GENRE")
+  def id = column[Int]("ID")
 
-  def * = (name, author, genre).mapTo[Book]
+  def * = (name, author, genre, id).mapTo[Book]
 }
 
 case class BookDB(tag: String, path: String) {//extends DB[Book] {
@@ -27,6 +28,13 @@ case class BookDB(tag: String, path: String) {//extends DB[Book] {
     val q = tableQuery.filter(_.name === searchTerm).result
     val s = db.run(q)
     val r = Await.result(s,Duration.Inf).toList
+    r
+  }
+
+  def find(id: Int): List[Book] = {
+    val q = tableQuery.filter(_.id === id).result
+    val s = db.run(q)
+    val r = Await.result(s, Duration.Inf).toList
     r
   }
 

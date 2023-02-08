@@ -2,14 +2,14 @@ package Controller
 
 import Mode.{Mode, ModeType}
 import _root_.Mode.ModeType.{AppType, LoginType}
-import zio.{IO, ZIO}
+import zio.{IO, Task, ZIO}
 
 trait Event[+SomeType <: ModeType]{
 
 }
 
 trait ExEvent[+SomeType <: ModeType] extends Event[SomeType] {
-  def execute(): Event[SomeType]
+  def execute(): Task[Event[SomeType]]
   //val mode
 }
 
@@ -26,10 +26,10 @@ object Event {
   }
 
   trait AppEvent extends ExEvent[AppType]
-  val NAE = NullEvent[AppType]()//Null App Event: NAE
+  val NAE = ZIO.succeed(NullEvent[AppType]())//Null App Event: NAE
 
   trait LoginEvent extends ExEvent[LoginType]
-  val NLE = NullEvent[LoginType]() //Null Login Event: NLE
+  val NLE = ZIO.succeed(NullEvent[LoginType]()) //Null Login Event: NLE
   final case class TerminateEvent[+SomeType <: ModeType]() extends Event[SomeType] //Event to end app
 
   final case class NullEvent[+SomeType <: ModeType]() extends Event[SomeType] // Event that does nothing

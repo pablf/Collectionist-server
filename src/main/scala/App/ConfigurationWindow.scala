@@ -1,12 +1,12 @@
 package App
 
-import Controller.Event.{ChangeMode, NullEvent}
+import Controller.Event.{ChangeMode, NAE, NullEvent}
 import Controller.{Event, ExEvent}
 import Mode.{AppMode, LoginMode, Mode}
 import _root_.Mode.ModeType.{AppType, LoginType}
 import State.ConfigurationState
 import zio.Console.printLine
-import zio.{IO, ZIO}
+import zio.{IO, Task, ZIO}
 
 import java.awt.desktop.AppEvent
 import java.io.IOException
@@ -36,7 +36,7 @@ case class ConfigurationWindow(val mode: AppMode) extends Window {
     case "P" => ConfigurationEvent.ChangePassword()
     case "D" => ConfigurationEvent.DeleteUser()
     case _ => state match {
-      case ConfigurationState.Menu() => NAE
+      case ConfigurationState.Menu() => NullEvent[AppType]()
       case ConfigurationState.AskCurrentPassword() => ConfigurationEvent.CheckOldPassword(tag)
       case ConfigurationState.AskNewPassword() => ConfigurationEvent.SetNewPassword(tag)
     }
@@ -44,25 +44,24 @@ case class ConfigurationWindow(val mode: AppMode) extends Window {
 
 
   trait ConfigurationEvent extends ExEvent[AppType]
-  val NAE = NullEvent[AppType]()
 
   object ConfigurationEvent {
     final case class ChangePassword() extends ConfigurationEvent {
-      def execute(): Event[AppType] = {
+      def execute(): Task[Event[AppType]] = {
         state = ConfigurationState.AskCurrentPassword()
         NAE
       }
     }
 
     final case class CheckOldPassword(tag: String) extends ConfigurationEvent {
-      def execute(): Event[AppType] = {
+      def execute(): Task[Event[AppType]] = {
         if(mode.user.checkPass(tag)) state = ConfigurationState.AskNewPassword()
         NAE
       }
     }
 
     final case class SetNewPassword(tag: String) extends ConfigurationEvent {
-      def execute(): Event[AppType] = {
+      def execute(): Task[Event[AppType]] = {
         mode.user.changePass(tag)
         state = ConfigurationState.Menu()
         NAE
@@ -70,13 +69,13 @@ case class ConfigurationWindow(val mode: AppMode) extends Window {
     }
 
     final case class DeleteUser() extends ConfigurationEvent {
-      def execute(): Event[AppType] = {
+      def execute(): Task[Event[AppType]] = {
         mode.user.delete()
         state = ConfigurationState.Menu()
-        new ChangeMode[AppType] {
+        ZIO.succeed(new ChangeMode[AppType] {
           type nextType = LoginType
           val nextMode: IO[Throwable, Mode[LoginType]] = LoginMode()
-        }
+        })
       }
 
     }

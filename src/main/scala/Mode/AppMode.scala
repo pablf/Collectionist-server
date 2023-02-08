@@ -7,7 +7,7 @@ import DB._
 import Mode.ModeType.{AppType, ExitType}
 import Recommendation.Recommender
 import zio.Console.printLine
-import zio.{IO, Ref, ZIO}
+import zio.{IO, Ref, Task, ZIO}
 
 import java.io.IOException
 import scala.collection.mutable.ListBuffer
@@ -23,10 +23,13 @@ case class AppMode(val user: Profile, override val eventQueue: zio.Queue[Event[A
   var updated: Boolean = false
 
   val bookdb: BookDB = BookDB("a", "bookdb")
+  val ratingsdb: RatingDB = RatingDB("Ratings")
+
+  val recommender: Recommender = new Recommender(bookdb)
 
   var windows: ListBuffer[Window] = ListBuffer(SearchWindow(this))
-  //val recommender: Recommender = new Recommender(user)
-  //val recWindow: RecWindow = new RecWindow(recommender)
+
+  val recWindow: RecWindow = new RecWindow(recommender, user.id)
 
 
   //print routine...
@@ -52,7 +55,7 @@ case class AppMode(val user: Profile, override val eventQueue: zio.Queue[Event[A
 
 
   def standardKeymap(): ZIO[Any, IOException, Unit] =
-    printLine("Search [S]      Add book [A]      Remove Book [R]      Profile configuration [C]      Exit [E]")
+    printLine("Search [S]      Manage library [M]      Profile configuration [C]      Quit window [Q]      Exit [E]")
 
 
 
@@ -62,9 +65,8 @@ case class AppMode(val user: Profile, override val eventQueue: zio.Queue[Event[A
     tag match {
       case Int(n) => AppEvent.GotoProcess(n)
       case "S" => AppEvent.Open(new SearchWindow(this))
-      case "A" => AppEvent.Open(new AddWindow(this))
-      //case "R" => AppEvent.Open(new RemoveWindow(this))
-      //case "C" => AppEvent.Open(new ConfigurationWindow(this))
+      case "M" => AppEvent.Open(new AddWindow(this))
+      case "C" => AppEvent.Open(new ConfigurationWindow(this))
       case "Q" => AppEvent.QuitWindow()
       case "E" => ToExit()
       case _ => {
@@ -121,14 +123,17 @@ case class AppMode(val user: Profile, override val eventQueue: zio.Queue[Event[A
 
   object AppEvent {
     final case class GotoProcess(n: Int) extends AppEvent {
-      def execute(): Event[AppType] = {
+      def execute(): Task[Event[AppType]] = {
+        windows(mainWindow).updated = false
         mainWindow = n
+        windows(mainWindow).updated = false
         NAE
       }
     }
 
     final case class Open(window: Window) extends AppEvent {
-      def execute(): Event[AppType]= {
+      def execute(): Task[Event[AppType]] = {
+        windows(mainWindow).updated = false
         windows.append(window)
         mainWindow = windows.length-1
         NAE
@@ -145,8 +150,9 @@ case class AppMode(val user: Profile, override val eventQueue: zio.Queue[Event[A
     }
 
     final case class QuitWindow() extends AppEvent {
-      def execute(): Event[AppType] = {
-        windows.drop(mainWindow)
+      def execute(): Task[Event[AppType]] = {
+        windows.remove(mainWindow)
+        mainWindow = mainWindow - 1
         NAE
       }
     }

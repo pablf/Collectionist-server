@@ -8,6 +8,7 @@ This class contains generic methods to print, get input and actualize the state 
 
 import Controller.Event.{ChangeMode, NullEvent, TerminateEvent}
 import Controller.{Event, ExEvent}
+import org.fusesource.jansi.Ansi.ansi
 import zio.Console.{printLine, readLine}
 import zio.{ZIO, _}
 
@@ -24,7 +25,7 @@ trait Mode[Type <: ModeType] {
   }yield()
 
   val CleanCode = "\u001b[2J\u001b[;H"
-  def clean(): ZIO[Any, IOException, Unit] = ZIO.succeed(println(CleanCode))
+  def clean(): ZIO[Any, IOException, Unit] = printLine(ansi().eraseScreen().cursor(1, 1))
 
   def print(): ZIO[Any, IOException, Unit]
 
@@ -54,7 +55,8 @@ trait Mode[Type <: ModeType] {
       }
       case _: NullEvent[Type] => ZIO.succeed(true)
       case event: ExEvent[Type] => for {
-        ev <- ZIO.succeed(event.execute())
+        ev <- event.execute()
+          .retry(Schedule.recurs(5))//.catchSome {//_: NextModeLoadingError}
         _ <- eventQueue.offer(ev)
         continue <- ZIO.succeed(true)
       } yield (continue)

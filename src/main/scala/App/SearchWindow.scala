@@ -1,12 +1,12 @@
 package App
 
 import Controller.{Event, ExEvent}
-import Controller.Event.NullEvent
+import Controller.Event.{NAE, NullEvent}
 import Mode.AppMode
 import Mode.ModeType.AppType
 import State.SearchState
 import zio.Console.printLine
-import zio.ZIO
+import zio.{Task, ZIO}
 
 import java.io.IOException
 
@@ -35,11 +35,10 @@ case class SearchWindow(val mode: AppMode) extends Window {
 
 
   trait SearchEvent extends ExEvent[AppType]
-  val NAE = NullEvent[AppType]()
 
   object SearchEvent {
     final case class SearchBook(tag: String) extends SearchEvent {
-      def execute(): Event[AppType] = {
+      def execute(): Task[Event[AppType]] = {
         val books = mode.bookdb.search(tag)
         if (books.nonEmpty) {
           currentBook = Option(books.head)
@@ -47,12 +46,12 @@ case class SearchWindow(val mode: AppMode) extends Window {
           updated = true
           state = SearchState.Found()
           NAE
-        } else NotFoundBook(tag)
+        } else ZIO.succeed(NotFoundBook(tag))
       }
     }
 
     final case class NotFoundBook(tag: String) extends SearchEvent {
-      def execute(): Event[AppType] = {
+      def execute(): Task[Event[AppType]] = {
         state = SearchState.NotFound()
         updated = true
         NAE

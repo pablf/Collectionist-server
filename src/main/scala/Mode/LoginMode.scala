@@ -8,6 +8,7 @@ import Mode.ModeType.{AppType, LoginType}
 import State.LoginState
 import zio.Console._
 import zio._
+import Validator.Validator
 
 import java.io.IOException
 
@@ -16,7 +17,10 @@ case class LoginMode(override val eventQueue: zio.Queue[Event[LoginType]], overr
   var state: LoginState = LoginState.GetUser()
   var user: String = ""
   var password: String = ""
-  val users = UserDB("users")
+
+  //TODO
+  val validator: Validator
+  //val users = UserDB("users")
 
   def print(): ZIO[Any, IOException, Unit] = state match {
     case _: LoginState.GetUser => printLine("Who are you?  ([N] for new user)")

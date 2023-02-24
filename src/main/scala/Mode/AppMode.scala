@@ -23,6 +23,7 @@ case class AppMode(val user: Profile, override val eventQueue: zio.Queue[Event[A
   var updated: Boolean = false
 
   val bookdb: BookDB = BookDB("a", "bookdb")
+  bookdb.db
   val ratingsdb: RatingDB = RatingDB("Ratings")
 
   val recommender: Recommender = new Recommender(bookdb)

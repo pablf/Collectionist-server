@@ -2,24 +2,30 @@ package DB
 
 import App.Book
 import slick.jdbc.H2Profile.api._
+import zio.ZIO
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 
-class Books(tag: Tag) extends Table[Book](tag, "BOOKS") {
+class Books(tag: Tag) extends MarkedTable[String, Book](tag, "BOOKS") {
   def name = column[String]("NAME")
   def author = column[String]("AUTHOR")
   def genre = column[String]("GENRE")
   def id = column[Int]("ID")
 
+  type Parameter = String
+  def marked: Rep[String] = name
+
+
+
   def * = (name, author, genre, id).mapTo[Book]
 }
 
-case class BookDB(tag: String, path: String) {//extends DB[Book] {
-  type TType = Books
+case class BookDB(tag: String, path: String) extends MarkedDB[String, Book, Books] {
   val tableQuery = TableQuery[Books]
-  val conf = "books"
+  val db = ZIO.attempt(Database.forURL("jdbc:h2:./db/" ++ path, driver = "org.h2.Driver"))
+  /*
   val db = Database.forURL("jdbc:h2:./db/" ++ path, driver = "org.h2.Driver")
   db.run(tableQuery.schema.create)
 
@@ -40,7 +46,7 @@ case class BookDB(tag: String, path: String) {//extends DB[Book] {
 
   def add(book: Book): Unit = db.run(tableQuery += book)
   def removeAll(book: Book): Unit = db.run(tableQuery.filter(_.name =!= book.name).result)
-
+*/
 }
 
 

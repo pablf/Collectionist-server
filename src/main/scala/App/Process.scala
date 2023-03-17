@@ -1,6 +1,6 @@
 package App
 
-import Controller.Event
+import Mode.Event
 import Mode.ModeType.AppType
 import zio._
 

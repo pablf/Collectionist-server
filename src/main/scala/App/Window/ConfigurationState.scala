@@ -1,4 +1,4 @@
-package State
+package App.Window
 
 sealed trait ConfigurationState
 object ConfigurationState {

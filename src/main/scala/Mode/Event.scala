@@ -1,6 +1,5 @@
-package Controller
+package Mode
 
-import Mode.{Mode, ModeType}
 import _root_.Mode.ModeType.{AppType, LoginType}
 import zio.{IO, Task, ZIO}
 
@@ -33,4 +32,6 @@ object Event {
   final case class TerminateEvent[+SomeType <: ModeType]() extends Event[SomeType] //Event to end app
 
   final case class NullEvent[+SomeType <: ModeType]() extends Event[SomeType] // Event that does nothing
+
+  trait Load[+SomeType <: ModeType] extends ExEvent[SomeType]
 }

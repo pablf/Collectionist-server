@@ -1,8 +1,9 @@
 package DB
 
-import App.Book
+import slick.jdbc.H2Profile
 import slick.jdbc.H2Profile.api._
 import zio.ZIO
+import zio.IO
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -19,34 +20,89 @@ class Books(tag: Tag) extends MarkedTable[String, Book](tag, "BOOKS") {
 
 
 
+
+
   def * = (name, author, genre, id).mapTo[Book]
 }
 
-case class BookDB(tag: String, path: String) extends MarkedDB[String, Book, Books] {
+case class BookDB(override val db: H2Profile.backend.JdbcDatabaseDef) extends MarkedStringDB[Book, Books] {
   val tableQuery = TableQuery[Books]
-  val db = ZIO.attempt(Database.forURL("jdbc:h2:./db/" ++ path, driver = "org.h2.Driver"))
-  /*
-  val db = Database.forURL("jdbc:h2:./db/" ++ path, driver = "org.h2.Driver")
-  db.run(tableQuery.schema.create)
 
+  def possibleTags: Array[String] = Array("Name", "Author", "Genre", "Id")
 
-  def search(searchTerm: String): List[Book] = {
-    val q = tableQuery.filter(_.name === searchTerm).result
-    val s = db.run(q)
-    val r = Await.result(s,Duration.Inf).toList
-    r
+  //similar to method search but with ID
+  def find(id: Int): IO[Throwable, List[Book]] = for {
+    query <- ZIO.succeed(tableQuery.filter(_.id === id).result)
+    result <- ZIO.fromFuture(implicit ec => db.run(query))
+  } yield result.toList
+
+  def getBooks(rec: List[Int]): IO[Throwable, List[Book]] = ZIO.collectAll(rec.map(n => find(n))).map(_.flatten)
+
+  def generalSearch(item: String): IO[Throwable, List[Book]] = {
+    val query = tableQuery.filter(book => (book.name.toLowerCase like s"%${item.toLowerCase()}%")
+      || (book.author.toLowerCase like s"%${item.toLowerCase()}%")
+      || (book.genre.toLowerCase like s"%${item.toLowerCase()}%")).result
+    ZIO.fromFuture(implicit ec => db.run(query)).map(_.toList)
   }
 
-  def find(id: Int): List[Book] = {
-    val q = tableQuery.filter(_.id === id).result
-    val s = db.run(q)
-    val r = Await.result(s, Duration.Inf).toList
-    r
+  def advancedSearch(items: List[String], tags: List[String]): IO[Throwable, List[Book]] = {
+    if(items.length != tags.length) ZIO.fail(new Throwable())
+    else {
+      val query = composeQuery(items, tags).result
+      ZIO.fromFuture(implicit ec => db.run(query)).map(_.toList)
+    }
   }
 
-  def add(book: Book): Unit = db.run(tableQuery += book)
-  def removeAll(book: Book): Unit = db.run(tableQuery.filter(_.name =!= book.name).result)
-*/
+  def composeQuery(items: List[String], tags: List[String]): Query[Books, Books#TableElementType, Seq] = {
+    if(items.isEmpty && tags.isEmpty) {
+      val query = determineQuery(items.head, tags.head)
+      query ++ composeQuery(items.tail, tags.tail)
+    } else tableQuery.filterIf(false)(_.name === "")
+  }
+
+  def determineQuery(item: String, tag: String): Query[Books, Books#TableElementType, Seq] = tag match {
+    case "Name" => tableQuery.filter(_.name === item)
+    case "Author" => tableQuery.filter(_.author === item)
+    case "Genre" => tableQuery.filter(_.genre === item)
+    case "Id" => item match {
+      case Int(x) => tableQuery.filter(_.id === x)
+      case _ => tableQuery.filterIf(false)(_.name === item)// query that returns nothing???
+    }
+    case _ => tableQuery.filterIf(false)(_.name === item)
+  }
+
+
+
+  def searchTag(item: String, tag: String): IO[Throwable, List[Book]] = {
+    val query = determineQuery(item, tag).result
+    ZIO.fromFuture(implicit ec => db.run(query)).map(_.toList)
+  }
+
+  object Int {
+    def unapply(s: String): Option[Int] = try {
+      Some(s.toInt)
+    } catch {
+      case _: java.lang.NumberFormatException => None
+    }
+  }
+
+    /*rec match {
+    case List() => ZIO.succeed(rec)
+    case x :: xs => for {
+      firstBook <- find(x)
+      otherBooks <- getBooks(xs)
+    } yield firstBook ++ otherBooks
+  }*/
+}
+
+
+
+object BookDB {
+  def apply(tag: String, path: String): IO[Throwable, BookDB] = {
+    for {
+      db <- ZIO.attempt(Database.forURL("jdbc:h2:./db/" ++ path, driver = "org.h2.Driver"))
+    } yield BookDB(db)
+  }
 }
 
 

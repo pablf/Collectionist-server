@@ -1,9 +1,8 @@
-package App
+package DB
 
-import DB.BookDB
+import org.apache.spark.sql.Row
 
 import scala.collection.mutable.Map
-import org.apache.spark.sql.Row
 
 case class Book(name: String = "na", author: String = "na", genre: String = "na", id: Int = 0) extends Serializable {
 

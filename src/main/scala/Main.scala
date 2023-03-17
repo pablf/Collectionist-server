@@ -1,6 +1,7 @@
-import App.Profile
-import Controller.Event._
-import Mode.{AppMode, LoginMode, Mode, ModeType}
+import App.{AppMode, Profile}
+import Mode.Event._
+import Login.LoginMode
+import Mode.{Mode, ModeType}
 import zio._
 import org.fusesource.jansi.AnsiConsole
 

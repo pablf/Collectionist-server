@@ -1,9 +1,8 @@
-package App
+package App.Window
 
-import Controller.Event
-import Mode._
+import Mode.Event
 import Mode.ModeType.AppType
-import zio._
+import zio.ZIO
 
 import java.io.IOException
 

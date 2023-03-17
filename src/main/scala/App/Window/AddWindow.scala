@@ -1,15 +1,15 @@
-package App
+package App.Window
 
-
-import Controller.Event.{NAE, NullEvent}
-import Controller.{Event, ExEvent}
-import Mode.AppMode
+import App.AppMode
+import DB.Book
+import Mode.Event.NAE
+import Mode.{Event, ExEvent}
 import Mode.ModeType.AppType
-import State.AddState
 import zio.Console.printLine
 import zio.{Task, ZIO}
 
 import scala.collection.mutable.Map
+
 import java.io.IOException
 
 case class AddWindow(val mode: AppMode) extends Window {
@@ -17,7 +17,6 @@ case class AddWindow(val mode: AppMode) extends Window {
   var state: AddState = AddState.Enter("name", false)
   val fields = List("name", "author", "genre")
   val bookMap: Map[String, String] = Map("name" -> "", "author" -> "", "genre" -> "")
-
 
 
   def print(): ZIO[Any, IOException, Unit] = for {
@@ -29,12 +28,12 @@ case class AddWindow(val mode: AppMode) extends Window {
     _ <- printLine("     > Add Book [A]    > Remove Book [R]")
   } yield ()
 
-  def printSelector(field: String): String = if(isSelectedField(field)) "  ->  " else "    "
+  def printSelector(field: String): String = if (isSelectedField(field)) "  ->  " else "    "
 
   def isSelectedField(field: String): Boolean = state match {
-      case AddState.Enter(tag, _) => tag == field
-      case _ => false
-    }
+    case AddState.Enter(tag, _) => tag == field
+    case _ => false
+  }
 
   def printKeymap(): ZIO[Any, IOException, Unit] = printLine("Select fields with arrow. [A] to Add book")
 
@@ -59,8 +58,6 @@ case class AddWindow(val mode: AppMode) extends Window {
     }
 
 
-
-
     case class AddBook() extends AddEvent {
       def execute(): Task[Event[AppType]] = {
         mode.bookdb.add(Book.make(bookMap))
@@ -77,7 +74,7 @@ case class AddWindow(val mode: AppMode) extends Window {
 
     case class RemoveBook() extends AddEvent {
       def execute(): Task[Event[AppType]] = {
-        mode.bookdb.removeAll(Book.make(bookMap))
+        mode.bookdb.removeAll(bookMap("name"))
         state = state match {
           case AddState.Enter(field, _) => AddState.Enter(field, true)
         }
@@ -90,7 +87,7 @@ case class AddWindow(val mode: AppMode) extends Window {
     }
 
     case class SelectField(up: Boolean) extends AddEvent {
-      def execute(): Task[Event[AppType]] = if(up){
+      def execute(): Task[Event[AppType]] = if (up) {
         state = state match {
           case AddState.Enter("genre", v) => AddState.Enter("author", v)
           case AddState.Enter(_, v) => AddState.Enter("name", v)

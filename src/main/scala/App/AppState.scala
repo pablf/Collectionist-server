@@ -1,4 +1,4 @@
-package State
+package App
 
 sealed trait AppState {
 

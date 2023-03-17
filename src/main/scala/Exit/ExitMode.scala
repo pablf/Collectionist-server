@@ -1,10 +1,11 @@
-package Mode
+package Exit
 
-import Controller.Event
-import Controller.Event.{ChangeMode, TerminateEvent}
+import Mode.Event.{ChangeMode, TerminateEvent}
+import Login.LoginMode
 import Mode.ModeType.{ExitType, LoginType}
+import Mode.{Event, Mode}
 import zio.Console.printLine
-import zio.{IO, Ref, ZIO}
+import zio.{IO, Ref, UIO, ZIO}
 
 import java.io.IOException
 
@@ -13,7 +14,11 @@ case class ExitMode(override val eventQueue: zio.Queue[Event[ExitType]], overrid
   def print(): ZIO[Any, IOException, Unit] = printLine("Do you really want to go [E] or login again [N]?")
 
 
-  def command(tag: String): Event[ExitType] = tag match {
+  //command is wrapped in ZIO to deal with asynchronous access in other modes, keymap deals with cases that do not need ZIO,
+  // command must TODO  ??? hacerlo en Mode
+  def command(tag: String): UIO[Event[ExitType]] = ZIO.succeed(keymap(tag))
+
+  def keymap(tag: String) = tag match {
     case "E" => TerminateEvent[ExitType]()
     case "N" => ToLogin()
     case _ => TerminateEvent[ExitType]()

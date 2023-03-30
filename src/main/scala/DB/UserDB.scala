@@ -2,7 +2,7 @@ package DB
 
 import slick.jdbc.H2Profile
 import slick.jdbc.H2Profile.api._
-import zio.{IO, ZIO}
+import zio.{IO, Layer, ZIO, ZLayer}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -35,7 +35,7 @@ case class UserDB(override val db: H2Profile.backend.JdbcDatabaseDef) extends Ma
 }
 
 object UserDB {
-  def apply(tag: Tag): IO[Throwable, UserDB] = {
+  val layer: Layer[Throwable, UserDB] = ZLayer {
     for {
       conf <- ZIO.succeed("users")
       db <- ZIO.attempt(Database.forConfig(conf))

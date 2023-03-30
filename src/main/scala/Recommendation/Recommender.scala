@@ -7,10 +7,9 @@ import org.apache.spark._
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import zio.Console.printLine
-import zio.{IO, Task, UIO, ZIO}
+import zio.{IO, Task, UIO, ZIO, ZLayer}
 
 import scala.collection.mutable.ArraySeq
-
 import java.util.Properties
 import scala.::
 //import org.apache.spark.mllib.recommendation.{ALS, MatrixFactorizationModel, Rating}
@@ -21,6 +20,35 @@ import org.apache.log4j.{Level, Logger}
 import scala.collection.mutable.ListBuffer
 
 import org.apache.log4j.{Level, Logger}
+
+
+
+object Prueba extends App {
+  val sc = new SparkConf().setMaster("local[1]")
+  val spark = SparkSession.builder().appName("Recommender").config(sc).getOrCreate()
+
+  val connectionProperties: Properties = new Properties()
+  //connectionProperties.put("user", "username")
+  //connectionProperties.put("password", "password")
+  connectionProperties.put("driver", "org.h2.Driver")
+
+
+  val df: DataFrame = spark.read.jdbc("jdbc:h2:./db/ratingsdb", "books", connectionProperties)
+  df.show()
+  val model: ALSModel = new ALS().fit(df)
+
+  val a = model.recommendForAllUsers(2)
+  println(parser(a).toList)
+
+  def parser(df: DataFrame): Array[Int] = df.collect().map(_.get(1)).map(row => row match {
+    case a: ArraySeq[_] => a.head match {
+      case b: GenericRowWithSchema => b.getInt(0)
+      case _ => -1
+    }
+    case _ => -1
+  })
+
+}
 
 class Recommender(bookdb: BookDB) {
   val NRecommendations: Int = 50
@@ -49,11 +77,10 @@ class Recommender(bookdb: BookDB) {
   import spark.implicits._
   def giveRecommendation(user: Int): IO[Throwable, Array[Book]] = for{
     //df.filter(row => row.getInt(0) == user).isEmpty
-    rec <- if(true) printLine("1.5") *> ZIO.succeed( model.recommendForAllUsers(1))
+    rec <- if(true) ZIO.succeed( model.recommendForAllUsers(1))
     else ZIO.succeed( model.recommendForUserSubset(Seq(User(user)).toDS, 1))   //scala.math.min(50, df.collect().length)
-    _ <- printLine(parser(rec).toList)
-    books <- bookdb.getBooks(parser(rec).toList)
-    _ <- printLine(books.toList)
+    //_ <- printLine("2 " + parser(rec).toList)
+    books <- bookdb.getBooks(List(0))
     //books <- bookdb.getBooks(rec.collect().map(_.getInt(1)).toList)
     //books <- ZIO.foreach(rec.collect().map(_.getInt(1)))(row => bookdb.find(row)).map(_.flatten)
   } yield books.toArray // why toList???
@@ -76,4 +103,12 @@ class Recommender(bookdb: BookDB) {
   })
 
 
+}
+
+object Recommender {
+  val layer: ZLayer[BookDB, Any, Recommender] = ZLayer {
+    for {
+      bookdb <-ZIO.service[BookDB]
+    } yield new Recommender(bookdb)
+  }
 }

@@ -9,14 +9,18 @@ import zio.{IO, Ref, UIO, ZIO}
 
 import java.io.IOException
 
-case class ExitMode(override val eventQueue: zio.Queue[Event[ExitType]], override val mustReprint: zio.Ref[Boolean], override val continue: Ref[Boolean]) extends Mode[ExitType] {
+case class ExitMode(override val eventQueue: zio.Queue[Event[ExitType]],
+                    override val mustReprint: zio.Ref[Boolean],
+                    override val continue: Ref[Boolean],
+                    override val lastEvent: Ref[Event[ExitType]]
+                   ) extends Mode[ExitType] {
 
-  def print(): ZIO[Any, IOException, Unit] = printLine("Do you really want to go [E] or login again [N]?")
+  override def print(): ZIO[Any, IOException, Unit] = printLine("Do you really want to go [E] or login again [N]?")
 
 
   //command is wrapped in ZIO to deal with asynchronous access in other modes, keymap deals with cases that do not need ZIO,
   // command must TODO  ??? hacerlo en Mode
-  def command(tag: String): UIO[Event[ExitType]] = ZIO.succeed(keymap(tag))
+  override def command(tag: String): UIO[Event[ExitType]] = ZIO.succeed(keymap(tag))
 
   def keymap(tag: String) = tag match {
     case "E" => TerminateEvent[ExitType]()
@@ -39,6 +43,7 @@ object ExitMode {
       ref <- Ref.make(true)
       queue <- zio.Queue.unbounded[Event[ExitType]]
       continue <- Ref.make(true)
-    } yield ExitMode(queue, ref, continue)
+      lastEvent <- Ref.make[Event[ExitType]](new TerminateEvent[ExitType])
+    } yield ExitMode(queue, ref, continue, lastEvent)
   }
 }

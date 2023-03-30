@@ -2,8 +2,8 @@ package DB
 
 import slick.jdbc.H2Profile
 import slick.jdbc.H2Profile.api._
-import zio.ZIO
-import zio.IO
+import zio.{IO, Layer, ZIO, ZLayer}
+import zio.durationInt
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -33,7 +33,7 @@ case class BookDB(override val db: H2Profile.backend.JdbcDatabaseDef) extends Ma
   //similar to method search but with ID
   def find(id: Int): IO[Throwable, List[Book]] = for {
     query <- ZIO.succeed(tableQuery.filter(_.id === id).result)
-    result <- ZIO.fromFuture(implicit ec => db.run(query))
+    result <- ZIO.fromFuture(implicit ec => db.run(query)).timeoutFail(new Throwable)(5.second)
   } yield result.toList
 
   def getBooks(rec: List[Int]): IO[Throwable, List[Book]] = ZIO.collectAll(rec.map(n => find(n))).map(_.flatten)
@@ -98,7 +98,7 @@ case class BookDB(override val db: H2Profile.backend.JdbcDatabaseDef) extends Ma
 
 
 object BookDB {
-  def apply(tag: String, path: String): IO[Throwable, BookDB] = {
+  def layer(path: String): Layer[Throwable, BookDB] = ZLayer {
     for {
       db <- ZIO.attempt(Database.forURL("jdbc:h2:./db/" ++ path, driver = "org.h2.Driver"))
     } yield BookDB(db)

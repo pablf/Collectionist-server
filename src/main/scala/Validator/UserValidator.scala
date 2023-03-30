@@ -1,7 +1,7 @@
 package Validator
 
 import DB.{User, UserDB, Users}
-import zio.{IO, Ref, ZIO, ZLayer}
+import zio.{Ref, ZIO, ZLayer}
 import slick.jdbc.H2Profile.api._
 
 class UserValidator(override val db: UserDB,
@@ -12,10 +12,9 @@ class UserValidator(override val db: UserDB,
 
   def checkFirst(tag: String): ZIO[Any, Throwable, Boolean] = for {
     users <- db.search(tag)
-    result <- users.length match {
-      case 0 => ZIO.succeed(false)
-      case 1 => password.set(users.head.password) *> id.set(users.head.id) *> ZIO.succeed(true)
-      case _ => ZIO.fail(new Throwable)//???
+    result <- users.headOption match {
+      case Some(_) => ZIO.succeed(true)
+      case None => ZIO.succeed(false)
     }
   } yield result
 
@@ -49,10 +48,12 @@ class UserValidator(override val db: UserDB,
 }
 
 object UserValidator {
-  def layer(conf: String): ZLayer[Any, Throwable, UserValidator] = for {
-    user <- Ref.make("")
-    password <- Ref.make("")
-    id <- Ref.make(0)
-    userdb <- ZIO.attempt(Database.forConfig(conf))
-  } yield new UserValidator(UserDB(userdb), user, password, id)
+  def layer(conf: String): ZLayer[UserDB, Throwable, UserValidator] = ZLayer {
+    for {
+      user <- Ref.make("")
+      password <- Ref.make("")
+      id <- Ref.make(0)
+      userdb <- ZIO.service[UserDB]
+    } yield new UserValidator(userdb, user, password, id)
+  }
 }

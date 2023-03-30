@@ -2,7 +2,7 @@ package DB
 
 import slick.jdbc.H2Profile
 import slick.jdbc.H2Profile.api._
-import zio.{IO, ZIO}
+import zio.{IO, Layer, ZIO, ZLayer}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -24,7 +24,7 @@ case class RatingDB(override val db: H2Profile.backend.JdbcDatabaseDef) extends 
 }
 
 object RatingDB {
-  def apply(): IO[Throwable, RatingDB] = {
+  val layer: Layer[Throwable, RatingDB] = ZLayer {
     for {
       db <- ZIO.attempt(Database.forURL("jdbc:h2:./db/ratingsdb", driver = "org.h2.Driver"))
     } yield RatingDB(db)

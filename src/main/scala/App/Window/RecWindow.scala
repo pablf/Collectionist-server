@@ -1,43 +1,77 @@
 package App
-import App.Window.Window
+import App.Window.{Window, WindowState}
 import Mode.Event.NAE
 import Mode.{Event, ExEvent, ModeType}
 import Mode.ModeType.AppType
 import Recommendation.Recommender
 import zio.Console.printLine
-import zio.{Cause, Task, ZIO, durationInt}
+import zio.{Cause, Task, UIO, ZIO, durationInt, Ref}
+
+import DB.Book
 
 import scala.concurrent.TimeoutException
 import java.io.IOException
 
-class RecWindow(val recommender: Recommender, val id: Int) extends Window {
+
+class RecWindow(val recommender: Recommender, val id: Int, val recommendations: Ref[Array[Book]]) {
   val name: String = "Recommender"
   var scrollIndex: Int = 0
   val ScrollAmplitude: Int = 3
 
+  def actualizeRecommendations: ZIO[Any, Throwable, Unit] = for {
+    newRecommendations <- recommender.giveRecommendation(id)
+    _ <- recommendations.set(newRecommendations)
+  } yield ()
+
+
+
+
 
   def print(): ZIO[Any, IOException, Unit] = for {
-    recommendations <- recommender.giveRecommendation(id)
-      .timeoutFailCause(Cause.die(new Error("timeout")))(3.second)
-      .catchAll {
-        _ => printLine("huha") *> ZIO.succeed(Array()).debug("did not finish recommendations")
-      }
-    _ <- if(recommendations.isEmpty) printLine("Ups, we could not load any recommendations for you...")
-    else for{
-      _ <- printLine("    You might be interested in the following books")
-      _ <- ZIO.foreach(scrollIndex to ScrollAmplitude)(i => zio.Console.print(s"| > ${recommendations(i).name}, by ${recommendations(i).author} |"))
+    _ <- actualizeRecommendations.fork
+      //.timeoutFailCause(Cause.die(new Error("timeout")))(3.second)
+      //.catchAll {
+        //_ => printLine("huha") *> ZIO.succeed(Array()).debug("did not finish recommendations")
+      //}
+    rec <- recommendations.get
+    _ <- if(rec.isEmpty) printLine("Ups, we could not load any recommendations for you...")
+    else for {
+      _ <- printLine("    You might be interested in the following books:")
+      texts <- ZIO.succeed(rec.map(book => Array(
+        s" > ${book.name}, by ${book.author} ",
+        s"     Genre: ${book.genre}"
+      )).map(format(_)))
+
+      _ <- zio.Console.print("  ")
+      _ <- ZIO.foreach(texts)(text => zio.Console.print( text(0)))
       _ <- printLine("")
-      _ <- ZIO.foreach(scrollIndex to ScrollAmplitude)(i => zio.Console.print(s"|     Genre: ${recommendations(i).genre}."))
+      _ <- zio.Console.print("  ")
+      _ <- ZIO.foreach(texts)(text => zio.Console.print( text(1)))
       _ <- printLine("")
+      /*
+      _ <- ZIO.foreach(rec)(book => zio.Console.print( s"| > ${book.name}, by ${book.author} |"))
+
+      _ <- printLine("")
+      //_ <- ZIO.foreach(Range(scrollIndex, ScrollAmplitude))(i => zio.Console.print(s"|     Genre: ${rec(i).genre}."))
+      _ <- ZIO.foreach(rec)(book => zio.Console.print(s"|     Genre: ${book.genre}."))
+
+      _ <- printLine("")*/
     } yield()
   } yield()
 
+  def format(texts: Array[String]): Array[String] = {
+    val maxLength = texts.map(_.length).max
+    texts.map(text => "|" + text + nSpace(maxLength - text.length)+ "|")
+  }
+
+  def nSpace(n: Int): String = if(n < 1) "" else " " + nSpace(n - 1)
+
   def printKeymap(): ZIO[Any, IOException, Unit] = ZIO.unit
 
-  def keymap(key: String): Event[ModeType.AppType] = key match {
+  def keymap(key: String): UIO[Event[ModeType.AppType]] = ZIO.succeed(key match {
     case "l" => RecEvent.Scroll(false)
     case "r" => RecEvent.Scroll(true)
-  }
+  })
 
   trait RecEvent extends ExEvent[AppType]
 

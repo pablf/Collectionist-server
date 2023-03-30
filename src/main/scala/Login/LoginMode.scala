@@ -1,7 +1,7 @@
 package Login
 
 import App.{AppMode, Profile}
-import Mode.Event.{ChangeMode, LoginEvent, NLE}
+import Mode.Event.{ChangeMode, LoginEvent, NLE, TerminateEvent}
 import Mode.{Event, Mode}
 import Validator.UserValidator
 import _root_.Mode.ModeType.{AppType, LoginType}
@@ -10,10 +10,12 @@ import zio._
 
 import java.io.IOException
 
-case class LoginMode(override val eventQueue: zio.Queue[Event[LoginType]],
+final case class LoginMode(override val eventQueue: zio.Queue[Event[LoginType]],
                      override val mustReprint: zio.Ref[Boolean],
                      override val continue: Ref[Boolean],
-                     val validator: UserValidator) extends Mode[LoginType] {
+                     override val lastEvent: Ref[Event[LoginType]],
+                     validator: UserValidator
+                    ) extends Mode[LoginType] {
   var state: LoginState = LoginState.LoginUser()
   var user: String = ""
   var password: String = ""
@@ -103,12 +105,13 @@ case class LoginMode(override val eventQueue: zio.Queue[Event[LoginType]],
 }
 
 object LoginMode {
-  def apply(): IO[Throwable, LoginMode] = {
+  def apply(): ZIO[UserValidator, Throwable, LoginMode] = {
     for {
+      queue <- zio.Queue.unbounded[Event[LoginType]]
       ref <- Ref.make(true)
       continue <- Ref.make(true)
-      queue <- zio.Queue.unbounded[Event[LoginType]]
-      validator <- UserValidator("users")
-    } yield LoginMode(queue, ref, continue, validator)
+      lastEvent <- Ref.make[Event[LoginType]](new TerminateEvent[LoginType])
+      validator <- ZIO.service[UserValidator]
+    } yield LoginMode(queue, ref, continue, lastEvent, validator)
   }
 }

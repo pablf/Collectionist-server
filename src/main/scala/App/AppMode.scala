@@ -5,10 +5,11 @@ import DB._
 import Exit.ExitMode
 import Mode.ModeType.{AppType, ExitType}
 import Mode.{Event, Mode}
-import Window.{AddWindow, SearchWindow, Window}
+import Window.{AddWindow, SearchWindow, Window, WindowState}
 import Recommendation.Recommender
+import Validator.UserValidator
 import zio.Console.printLine
-import zio.{IO, Ref, Task, UIO, ZIO, durationInt}
+import zio.{&, IO, RIO, Ref, Task, UIO, ZIO, durationInt}
 
 import java.io.IOException
 import scala.collection.mutable.ArrayBuffer
@@ -18,16 +19,14 @@ The AppMode is the library manager itself. It serves as a hub for different func
 There are AddWindow, ConfigurationWindow, RemoveWindow, RecWindow and SearchWindow.
  */
 
-case class AppMode(val user: Profile,
+case class AppMode(user: Profile,
                    override val eventQueue: zio.Queue[Event[AppType]],
                    override val mustReprint: zio.Ref[Boolean],
                    override val continue: Ref[Boolean],
-                   val bookdb: BookDB,
-                   val ratingsdb: RatingDB,
-                   windowsRef: Ref[ArrayBuffer[Window]],
-                   val mainWindow: Ref[Int],
-                   val recWindow: Ref[Option[RecWindow]]) extends Mode[AppType] {
-  var updated: Boolean = false
+                   override val lastEvent: Ref[Event[AppType]],
+                   windowsRef: Ref[ArrayBuffer[Window[_]]],
+                   mainWindow: Ref[Int],
+                   recWindow: Ref[Option[RecWindow]]) extends Mode[AppType] {
   var recommenderIsLoaded: Boolean = false
 
 
@@ -44,8 +43,6 @@ case class AppMode(val user: Profile,
     _ <- recommendation match {
       case None => printLine("Waiting...")
       case Some(window) => window.print()
-        .timeoutFail(new Throwable)(10.millis)
-        .catchAll(_ => printLine("Something failed..."))
     }
     _ <- tabs(windows, n)
     _ <- if(n > -1) windows(n).printKeymap() else ZIO.unit
@@ -61,10 +58,12 @@ case class AppMode(val user: Profile,
     printLine("    Welcome to Collectionist, the library manager") *>
       printLine("    Select a task to start!") *> printLine("")
 
-  def tabs(windows: ArrayBuffer[Window], main: Int): ZIO[Any, IOException, Unit] = if(windows.nonEmpty) {
+  def tabs(windows: ArrayBuffer[Window[_]], main: Int): ZIO[Any, IOException, Unit] = if(windows.nonEmpty) {
     if(main == 0) zio.Console.print("| " + ">> " + windows.head.name + "    |")
-    else if(windows.head.updated) zio.Console.print("| " + "  " + windows.head.name + " !! |")
-    else zio.Console.print("| " + "  " + windows.head.name + "    |")
+    else ZIO.ifZIO(windows.head.updated.get)(
+      onTrue = zio.Console.print("| " + "  " + windows.head.name + " !! |"),
+      onFalse = zio.Console.print("| " + "  " + windows.head.name + "    |")
+    )
   } *> tabs(windows.tail, main - 1)
   else printLine("")
 
@@ -82,15 +81,16 @@ case class AppMode(val user: Profile,
       case _ => for {
         n <- mainWindow.get
         windows <- windowsRef.get
-      } yield windows(n).keymap(tag)
+        ev <- windows(n).keymap(tag)
+      } yield ev
     }
   }
 
   def keymap(tag: String): Event[AppType] = tag match {
     case Int(n) => AppEvent.GotoProcess(n)
-    case "S" => AppEvent.Open(new SearchWindow(this))
-    case "M" => AppEvent.Open(new AddWindow(this))
-    case "C" => AppEvent.OpenZIO(ConfigurationWindow(this))
+    case "S" => AppEvent.OpenZIO(SearchWindow(this))
+    case "M" => AppEvent.OpenZIO(AddWindow(this))
+    case "C" => AppEvent.OpenZIO(ConfigurationWindow(this).provide(UserDB.layer, UserValidator.layer("users")))
     case "Q" => AppEvent.QuitWindow()
     case "E" => ToExit()
   }
@@ -131,7 +131,11 @@ case class AppMode(val user: Profile,
       } yield Update(n - 1, false)
     }
 
-    final case class OpenZIO(windowZIO: IO[Throwable,Window]) extends AppEvent {
+    final case class OpenZIO(
+                              windowZIO: ZIO[
+                                Any,
+                                Throwable, Window[_]]
+                            ) extends AppEvent {
       def execute(): Task[Event[AppType]] = for {
         n <- mainWindow.get
         window <- windowZIO
@@ -141,7 +145,7 @@ case class AppMode(val user: Profile,
       } yield Update(n, false)
     }
 
-    final case class Open(window: Window) extends AppEvent {
+    final case class Open(window: Window[_]) extends AppEvent {
       def execute(): Task[Event[AppType]] = for {
         n <- mainWindow.get
         _ <- windowsRef.update(_.addOne(window))
@@ -153,7 +157,7 @@ case class AppMode(val user: Profile,
     final case class Update(n: Int, isUpdated: Boolean) extends AppEvent {
       def execute(): Task[Event[AppType]] = for {
         _ <- if(n > -1) windowsRef.update(windows => {
-          windows(n).updated = false
+          windows(n).updated.set(false)
           windows
         }) else ZIO.unit
         ev <- NAE
@@ -166,9 +170,10 @@ case class AppMode(val user: Profile,
      */
 
     case class Loader() extends Load[AppType] {
-      def execute(): Task[Event[AppType]] = for {
-        recommender <- ZIO.succeed(new Recommender(bookdb))
-        newRecWindow <- ZIO.succeed(new RecWindow (recommender, user.id))
+      def execute(): RIO[Recommender, Event[AppType]] = for {
+        recommender <- ZIO.service[Recommender]
+        emptyList <- Ref.make[Array[Book]](Array())
+        newRecWindow <- ZIO.succeed(new RecWindow (recommender, user.id, emptyList))
         _ <- recWindow.set(Some(newRecWindow))
         ev <- NAE
       } yield ev
@@ -188,21 +193,23 @@ case class AppMode(val user: Profile,
 object AppMode{
   def apply(user: Profile): IO[Throwable, AppMode] = {
     for {
+      queue <- zio.Queue.unbounded[Event[AppType]]
       ref <- Ref.make(true)
       continue <- Ref.make(true)
-      queue <- zio.Queue.unbounded[Event[AppType]]
-      bookdb <-  BookDB("a", "bookdb")
-      ratingsdb <- RatingDB()
-      windowsRef <- Ref.make(ArrayBuffer[Window]())
+      lastEvent <- Ref.make[Event[AppType]](new TerminateEvent[AppType])
+
+
+      windowsRef <- Ref.make(ArrayBuffer[Window[_]]())
       mainWindow <- Ref.make(0)
       recWindow <- Ref.make[Option[RecWindow]](None)
-      appMode <- ZIO.succeed(AppMode(user, queue, ref, continue, bookdb, ratingsdb, windowsRef, mainWindow, recWindow))
+      appMode <- ZIO.succeed(AppMode(user, queue, ref, continue, lastEvent, windowsRef, mainWindow, recWindow))
 
       //Loads a new SearchWindow as predefault. TODO make this depend of user configuration
-      _ <- appMode.windowsRef.update(_.addOne(SearchWindow(appMode)))
+      window <- SearchWindow(appMode)
+      _ <- appMode.windowsRef.update(_.addOne(window))
 
       // Event Loader is added to the Queue of events to load spark and the recommender concurrently
-      //_ <- appMode.eventQueue.offer(appMode.AppEvent.Loader())
+      _ <- appMode.eventQueue.offer(appMode.AppEvent.Loader())
     } yield appMode
   }
 }

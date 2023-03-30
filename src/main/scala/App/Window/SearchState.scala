@@ -1,6 +1,6 @@
 package App.Window
 
-sealed trait SearchState
+sealed trait SearchState extends WindowState
 
 object SearchState {
   final case class NotFound() extends SearchState

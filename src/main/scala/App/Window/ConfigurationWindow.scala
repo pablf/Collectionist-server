@@ -8,23 +8,25 @@ import Mode.{Event, ExEvent, Mode}
 import _root_.Mode.ModeType.{AppType, LoginType}
 import Validator.UserValidator
 import zio.Console.printLine
-import zio.{IO, Task, ZIO}
+import zio.{IO, Ref, Task, UIO, ZIO}
 
 import java.awt.desktop.AppEvent
 import java.io.IOException
 
-case class ConfigurationWindow(val mode: AppMode, val validator: UserValidator) extends Window {
+case class ConfigurationWindow(override val updated: Ref[Boolean],
+                               override val state: Ref[ConfigurationState],
+                               mode: AppMode,
+                               validator: UserValidator) extends Window[ConfigurationState] {
   val name = "Configuration"
-  var state: ConfigurationState = ConfigurationState.Menu()
 
   var currentBook: Option[Book] = None
   var currentBooks: List[Book] = List()
 
-  def print(): ZIO[Any, IOException, Unit] = state match {
+  def print(): ZIO[Any, IOException, Unit] = state.get.flatMap(stateValue => stateValue match {
     case ConfigurationState.Menu() => printLine("You may change your password [P] or delete your profile [D]")
     case ConfigurationState.AskCurrentPassword() => printLine("Enter your current password first")
     case ConfigurationState.AskNewPassword() => printLine("Now you can enter your new password")
-  }
+  })
 
   def printKeymap(): ZIO[Any, IOException, Unit] = printLine("You may change your password [P] or delete your profile [D]")
 
@@ -34,14 +36,19 @@ case class ConfigurationWindow(val mode: AppMode, val validator: UserValidator) 
 
 
 
-  def keymap(tag: String): Event[AppType] = tag match {
-    case "P" => ConfigurationEvent.ChangeState(true, ConfigurationState.AskCurrentPassword())
-    case "D" => ConfigurationEvent.DeleteUser()
-    case _ => state match {
-      case ConfigurationState.Menu() => NullEvent[AppType]()
-      case ConfigurationState.AskCurrentPassword() => ConfigurationEvent.CheckOldPassword(tag)
-      case ConfigurationState.AskNewPassword() => ConfigurationEvent.SetNewPassword(tag)
-    }
+  def keymap(tag: String): UIO[Event[AppType]] = tag match {
+    case "P" => ZIO.succeed(ConfigurationEvent.ChangeState(true, ConfigurationState.AskCurrentPassword()))
+    case "D" => ZIO.succeed(ConfigurationEvent.DeleteUser())
+    case _ => for {
+      stateValue <- state.get
+      ev <- stateValue match {
+        case ConfigurationState.Menu() => ZIO.succeed(NullEvent[AppType]())
+        case ConfigurationState.AskCurrentPassword() => ZIO.succeed(ConfigurationEvent.CheckOldPassword(tag))
+        case ConfigurationState.AskNewPassword() => ZIO.succeed(ConfigurationEvent.SetNewPassword(tag))
+      }
+    } yield ev
+
+
   }
 
 
@@ -49,10 +56,7 @@ case class ConfigurationWindow(val mode: AppMode, val validator: UserValidator) 
 
   object ConfigurationEvent {
     final case class ChangeState(mustChange: Boolean, nextState: ConfigurationState) extends ConfigurationEvent {
-      def execute(): Task[Event[AppType]] = {
-        state = nextState
-        NAE
-      }
+      def execute(): Task[Event[AppType]] = state.set(nextState) *> NAE
 
 
       // if(mustChange) ZIO.succeed(state = nextState) *> NAE else NAE
@@ -75,7 +79,7 @@ case class ConfigurationWindow(val mode: AppMode, val validator: UserValidator) 
       def execute(): Task[Event[AppType]] = validator.delete(mode.user.name) *>
         ZIO.succeed(new ChangeMode[AppType] {
           type nextType = LoginType
-          val nextMode: IO[Throwable, Mode[LoginType]] = LoginMode()})
+          val nextMode: ZIO[UserValidator, Throwable, Mode[LoginType]] = LoginMode()})
     }
 
   }
@@ -84,7 +88,9 @@ case class ConfigurationWindow(val mode: AppMode, val validator: UserValidator) 
 }
 
 object ConfigurationWindow {
-  def apply(mode: AppMode): IO[Throwable, ConfigurationWindow] = for {
-    validator <- UserValidator("users")
-  } yield ConfigurationWindow(mode, validator)
+  def apply(mode: AppMode): ZIO[UserValidator, Throwable, ConfigurationWindow] = for {
+    updated <- Ref.make(false)
+    state <- Ref.make[ConfigurationState](ConfigurationState.Menu())
+    validator <- ZIO.service[UserValidator]
+  } yield ConfigurationWindow(updated, state, mode, validator)
 }

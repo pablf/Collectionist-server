@@ -1,14 +1,21 @@
 package Mode
 
+import DB.{BookDB, RatingDB, UserDB}
+import Recommendation.Recommender
+import Validator.UserValidator
 import _root_.Mode.ModeType.{AppType, LoginType}
-import zio.{IO, Task, ZIO}
+import zio.{&, IO, Task, ZIO}
 
 trait Event[+SomeType <: ModeType]{
 
 }
 
 trait ExEvent[+SomeType <: ModeType] extends Event[SomeType] {
-  def execute(): Task[Event[SomeType]]
+  def execute(): ZIO[UserValidator &
+    Recommender &
+    RatingDB &
+    UserDB &
+    BookDB, Throwable, Event[SomeType]]
   //val mode
 }
 
@@ -21,7 +28,11 @@ trait ExEvent[+SomeType <: ModeType] extends Event[SomeType] {
 object Event {
   abstract class ChangeMode[+SomeType <: ModeType]() extends Event[SomeType]{
     type nextType <: ModeType
-    val nextMode: IO[Throwable, Mode[nextType]]
+    val nextMode: ZIO[UserValidator &
+      Recommender &
+      RatingDB &
+      UserDB &
+      BookDB, Throwable, Mode[nextType]]
   }
 
   trait AppEvent extends ExEvent[AppType]

@@ -16,7 +16,6 @@ object Main extends ZIOAppDefault {
         .flatMap(profile => loop(AppMode(profile))
           .provide(
             UserValidator.layer("user"),
-            Recommender.layer,
             RatingDB.layer,
             UserDB.layer,
             BookDB.layer("bookdb"))) *>
@@ -40,13 +39,15 @@ object Main extends ZIOAppDefault {
   //basic structure: print, wait for new event, act in response to new event
   def loop[SomeType <: ModeType](zioMode: IO[Throwable,Mode[SomeType]]): ZIO[
     UserValidator &
-      Recommender &
       RatingDB &
       UserDB &
       BookDB, Any, Unit] = for {
     mode <- zioMode                                                                  // get mode
     f1 <- mode.reprint().repeat(Schedule.spaced(1000.millis)).fork                   // output fiber
     f2 <- mode.catchEvent().repeat(Schedule.forever).fork                            // input fiber
+
+    // 2 mode.actualize() are executed in parallel, admitting execution of 2 events at most
+    _ <- mode.actualize().repeatWhileEquals(true).fork                               // process events
     _ <- mode.actualize().repeatWhileEquals(true)                                    // process events
 
     _ <- f1.interrupt

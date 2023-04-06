@@ -45,7 +45,6 @@ trait Mode[Type <: ModeType] extends ModeInterface[Type]{
   // ACTUALIZE
   // Take event from queue, execute it and get an event in return
   override def actualize(): ZIO[UserValidator &
-    Recommender &
     RatingDB &
     UserDB &
     BookDB, Throwable, Boolean] = for {

@@ -9,6 +9,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import zio.Console.printLine
 import zio.{IO, Task, UIO, ZIO, ZLayer}
 
+import java.io.{OutputStream, PrintStream}
 import scala.collection.mutable.ArraySeq
 import java.util.Properties
 import scala.::
@@ -20,6 +21,7 @@ import org.apache.log4j.{Level, Logger}
 import scala.collection.mutable.ListBuffer
 
 import org.apache.log4j.{Level, Logger}
+import scala.annotation.nowarn
 
 
 
@@ -50,19 +52,20 @@ object Prueba extends App {
 
 }
 
-class Recommender(bookdb: BookDB) {
+class Recommender(bookdb: BookDB, spark: SparkSession) {
   val NRecommendations: Int = 50
 
 
-
+/*
   val sconf = new SparkConf().setMaster("local[1]").setAppName("Recommender")
   val sc = new SparkContext(sconf)
   Logger.getRootLogger().setLevel(Level.OFF)
 
   Logger.getLogger("org.apache.spark").setLevel(Level.OFF)
   Logger.getLogger("org.spark-project").setLevel(Level.OFF)
+  @SuppressWarnings(Array("unchecked"))
   val spark = SparkSession.builder().config(sc.getConf).getOrCreate()
-
+*/
   val connectionProperties: Properties = new Properties()
   //connectionProperties.put("user", "username")
   //connectionProperties.put("password", "password")
@@ -106,9 +109,21 @@ class Recommender(bookdb: BookDB) {
 }
 
 object Recommender {
-  val layer: ZLayer[BookDB, Any, Recommender] = ZLayer {
+  val layer: ZLayer[BookDB, Throwable, Recommender] = ZLayer {
     for {
-      bookdb <-ZIO.service[BookDB]
-    } yield new Recommender(bookdb)
+      bookdb <- ZIO.service[BookDB]
+      spark <- createSession
+    } yield new Recommender(bookdb, spark)
+  }
+
+  def createSession: UIO[SparkSession] = {
+    // to supress errors of JVM, in particular illegal reflection caused by Spark that gets printed to Console
+    System.err.close()
+
+    val sconf = new SparkConf().setMaster("local[1]").setAppName("Recommender")
+    val sc = new SparkContext(sconf)
+    val spark = SparkSession.builder().config(sc.getConf).getOrCreate()
+
+    ZIO.succeed(spark)
   }
 }

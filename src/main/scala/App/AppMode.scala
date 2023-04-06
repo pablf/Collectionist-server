@@ -9,7 +9,7 @@ import Window.{AddWindow, SearchWindow, Window, WindowState}
 import Recommendation.Recommender
 import Validator.UserValidator
 import zio.Console.printLine
-import zio.{&, IO, RIO, Ref, Task, UIO, ZIO, durationInt}
+import zio.{&, IO, RIO, Ref, Task, UIO, ZIO, ZLayer, durationInt}
 
 import java.io.IOException
 import scala.collection.mutable.ArrayBuffer
@@ -41,7 +41,7 @@ case class AppMode(user: Profile,
     _ <- if(n == -1) emptyWindow()
         else windows(n).print()
     _ <- recommendation match {
-      case None => printLine("Waiting...")
+      case None => printLine("    Loading recommendations...")
       case Some(window) => window.print()
     }
     _ <- tabs(windows, n)
@@ -170,13 +170,17 @@ case class AppMode(user: Profile,
      */
 
     case class Loader() extends Load[AppType] {
-      def execute(): RIO[Recommender, Event[AppType]] = for {
+      def execute(): RIO[BookDB, Event[AppType]] = makeRecWindow.provideSome(Recommender.layer)
+
+
+      def makeRecWindow(): RIO[Recommender, Event[AppType]] = for {
         recommender <- ZIO.service[Recommender]
-        emptyList <- Ref.make[Array[Book]](Array())
-        newRecWindow <- ZIO.succeed(new RecWindow (recommender, user.id, emptyList))
+        emptyList <- Ref.make[Option[Array[Book]]](None)
+        newRecWindow <- ZIO.succeed(new RecWindow(recommender, user.id, emptyList))
         _ <- recWindow.set(Some(newRecWindow))
         ev <- NAE
       } yield ev
+
     }
 
   }

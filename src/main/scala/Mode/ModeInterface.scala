@@ -27,7 +27,6 @@ trait ModeInterface[Type <: ModeType] {
   def catchEvent(): IO[IOException, Unit]
 
   def actualize(): ZIO[UserValidator &
-    Recommender &
     RatingDB &
     UserDB &
     BookDB, Throwable, Boolean]

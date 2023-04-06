@@ -10,7 +10,7 @@ import Validator.UserValidator
 import zio.Console.printLine
 import zio.{IO, Ref, Task, UIO, ZIO}
 
-import java.awt.desktop.AppEvent
+
 import java.io.IOException
 
 case class ConfigurationWindow(override val updated: Ref[Boolean],

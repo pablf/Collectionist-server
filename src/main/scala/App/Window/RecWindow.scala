@@ -13,14 +13,14 @@ import scala.concurrent.TimeoutException
 import java.io.IOException
 
 
-class RecWindow(val recommender: Recommender, val id: Int, val recommendations: Ref[Array[Book]]) {
+class RecWindow(val recommender: Recommender, val id: Int, val recommendations: Ref[Option[Array[Book]]]) {
   val name: String = "Recommender"
   var scrollIndex: Int = 0
   val ScrollAmplitude: Int = 3
 
   def actualizeRecommendations: ZIO[Any, Throwable, Unit] = for {
     newRecommendations <- recommender.giveRecommendation(id)
-    _ <- recommendations.set(newRecommendations)
+      _ <- recommendations.set(Some(newRecommendations))
   } yield ()
 
 
@@ -33,22 +33,21 @@ class RecWindow(val recommender: Recommender, val id: Int, val recommendations: 
       //.catchAll {
         //_ => printLine("huha") *> ZIO.succeed(Array()).debug("did not finish recommendations")
       //}
-    rec <- recommendations.get
-    _ <- if(rec.isEmpty) printLine("Ups, we could not load any recommendations for you...")
-    else for {
-      _ <- printLine("    You might be interested in the following books:")
-      texts <- ZIO.succeed(rec.map(book => Array(
-        s" > ${book.name}, by ${book.author} ",
-        s"     Genre: ${book.genre}"
-      )).map(format(_)))
-
-      _ <- zio.Console.print("  ")
-      _ <- ZIO.foreach(texts)(text => zio.Console.print( text(0)))
-      _ <- printLine("")
-      _ <- zio.Console.print("  ")
-      _ <- ZIO.foreach(texts)(text => zio.Console.print( text(1)))
-      _ <- printLine("")
-      /*
+    r <- recommendations.get
+    _ <- r match {
+      case None => printLine("    Loading recommendations...")
+      case Some(rec) => {
+        if (rec.isEmpty) printLine("    Ups, we could not load any recommendations for you...")
+        else for {
+          _ <- printLine("    You might be interested in the following books:")
+          texts <- ZIO.succeed(rec.map(book => Array(s" > ${book.name}, by ${book.author} ", s"     Genre: ${book.genre}")).map(format(_)))
+          _ <- zio.Console.print("  ")
+          _ <- ZIO.foreach(texts)(text => zio.Console.print(text(0)))
+          _ <- printLine("")
+          _ <- zio.Console.print("  ")
+          _ <- ZIO.foreach(texts)(text => zio.Console.print(text(1)))
+          _ <- printLine("")
+          /*
       _ <- ZIO.foreach(rec)(book => zio.Console.print( s"| > ${book.name}, by ${book.author} |"))
 
       _ <- printLine("")
@@ -56,7 +55,9 @@ class RecWindow(val recommender: Recommender, val id: Int, val recommendations: 
       _ <- ZIO.foreach(rec)(book => zio.Console.print(s"|     Genre: ${book.genre}."))
 
       _ <- printLine("")*/
-    } yield()
+        } yield ()
+      }
+    }
   } yield()
 
   def format(texts: Array[String]): Array[String] = {

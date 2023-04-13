@@ -1,26 +1,19 @@
 package DB
 
+import Common.Book
 import slick.jdbc.H2Profile
 import slick.jdbc.H2Profile.api._
 import zio.{IO, Layer, ZIO, ZLayer}
 import zio.durationInt
 
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
-
-
 class Books(tag: Tag) extends MarkedTable[String, Book](tag, "BOOKS") {
-  def name = column[String]("NAME")
-  def author = column[String]("AUTHOR")
-  def genre = column[String]("GENRE")
-  def id = column[Int]("ID")
+  def name: Rep[String] = column[String]("NAME")
+  def author: Rep[String] = column[String]("AUTHOR")
+  def genre: Rep[String] = column[String]("GENRE")
+  def id: Rep[Int] = column[Int]("ID")
 
   type Parameter = String
   def marked: Rep[String] = name
-
-
-
-
 
   def * = (name, author, genre, id).mapTo[Book]
 }
@@ -30,13 +23,15 @@ case class BookDB(override val db: H2Profile.backend.JdbcDatabaseDef) extends Ma
 
   def possibleTags: Array[String] = Array("Name", "Author", "Genre", "Id")
 
-  //similar to method search but with ID
+  // similar to method search but with ID
   def find(id: Int): IO[Throwable, List[Book]] = for {
     query <- ZIO.succeed(tableQuery.filter(_.id === id).result)
     result <- ZIO.fromFuture(implicit ec => db.run(query)).timeoutFail(new Throwable)(5.second)
   } yield result.toList
 
-  def getBooks(rec: List[Int]): IO[Throwable, List[Book]] = ZIO.collectAll(rec.map(n => find(n))).map(_.flatten)
+  def getBooks(rec: List[Int]): IO[Throwable, List[Book]] = ZIO
+      .collectAll(rec.map(n => find(n)))
+      .map(_.flatten)
 
   def generalSearch(item: String): IO[Throwable, List[Book]] = {
     val query = tableQuery.filter(book => (book.name.toLowerCase like s"%${item.toLowerCase()}%")
@@ -86,23 +81,18 @@ case class BookDB(override val db: H2Profile.backend.JdbcDatabaseDef) extends Ma
     }
   }
 
-    /*rec match {
-    case List() => ZIO.succeed(rec)
-    case x :: xs => for {
-      firstBook <- find(x)
-      otherBooks <- getBooks(xs)
-    } yield firstBook ++ otherBooks
-  }*/
 }
 
 
 
 object BookDB {
+
   def layer(path: String): Layer[Throwable, BookDB] = ZLayer {
     for {
       db <- ZIO.attempt(Database.forURL("jdbc:h2:./db/" ++ path, driver = "org.h2.Driver"))
     } yield BookDB(db)
   }
+
 }
 
 

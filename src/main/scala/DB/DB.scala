@@ -5,6 +5,14 @@ import slick.jdbc.H2Profile
 
 import zio.{IO, ZIO}
 
+/*
+ *  A DB is an usual database. It implements methods:
+ *     - add
+ *     - update
+ *
+ *  MarkedDB are used to have an special parameter such as ID
+ */
+
 
 trait DB[T <: Serializable, Ts <: Table[T]] {
   //class type required but Ts found ???

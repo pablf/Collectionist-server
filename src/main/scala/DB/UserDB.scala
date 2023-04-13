@@ -1,16 +1,11 @@
 package DB
 
+import Common.User
 import slick.jdbc.H2Profile
 import slick.jdbc.H2Profile.api._
-import zio.{IO, Layer, ZIO, ZLayer}
+import zio.{Layer, ZIO, ZLayer}
 
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
-
-
-
-
-class Users(tag: Tag) extends MarkedTable[String, User](tag, "UserS") {
+class Users(tag: Tag) extends MarkedTable[String, User](tag, "Users") {
   def name = column[String]("NAME")
   def password = column[String]("PASSWORD")
   /*
@@ -35,12 +30,14 @@ case class UserDB(override val db: H2Profile.backend.JdbcDatabaseDef) extends Ma
 }
 
 object UserDB {
+
   val layer: Layer[Throwable, UserDB] = ZLayer {
     for {
       conf <- ZIO.succeed("users")
       db <- ZIO.attempt(Database.forConfig(conf))
     } yield UserDB(db)
   }
+
 }
 
 

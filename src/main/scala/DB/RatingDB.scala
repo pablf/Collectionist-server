@@ -1,9 +1,13 @@
 package DB
 
 import Common.Rating
-import slick.jdbc.H2Profile
-import slick.jdbc.H2Profile.api._
+import slick.jdbc.PostgresProfile
+import slick.jdbc.PostgresProfile.api._
 import zio.{Layer, ZIO, ZLayer}
+
+/*
+ * Database read by the Recommender service that saves the ratings of the books by the users.
+ */
 
 class Ratings(tag: Tag) extends MarkedTable[Int, Rating](tag, "BOOKS") {
   def user: Rep[Int] = column[Int]("user")
@@ -16,7 +20,7 @@ class Ratings(tag: Tag) extends MarkedTable[Int, Rating](tag, "BOOKS") {
   def * = (user, item, rating).mapTo[Rating]
 }
 
-case class RatingDB(override val db: H2Profile.backend.JdbcDatabaseDef) extends MarkedIntDB[Rating, Ratings] {
+case class RatingDB(override val db: PostgresProfile.backend.JdbcDatabaseDef) extends MarkedIntDB[Rating, Ratings] {
   val tableQuery = TableQuery[Ratings]
 }
 
@@ -24,7 +28,7 @@ object RatingDB {
 
   val layer: Layer[Throwable, RatingDB] = ZLayer {
     for {
-      db <- ZIO.attempt(Database.forURL("jdbc:h2:./db/ratingsdb", driver = "org.h2.Driver"))
+      db <- ZIO.attempt(Database.forConfig("ratingdb"))
     } yield RatingDB(db)
   }
 

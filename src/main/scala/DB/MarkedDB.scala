@@ -1,6 +1,7 @@
 package DB
 
-import slick.jdbc.H2Profile.api.{Tag, Table, Rep}
+import Common.WithId
+import slick.jdbc.PostgresProfile.api.{Rep, Table, Tag}
 import zio.IO
 
 /*
@@ -13,15 +14,13 @@ import zio.IO
  *  slick might not be able to apply === and =!= for arbitrary Parameter.
  */
 
-abstract class MarkedTable[Parameter, T](tag: Tag, a: String) extends Table[T](tag, a) {//???
+abstract class MarkedTable[Parameter, T <: WithId](tag: Tag, a: String) extends TableWithId[T](tag, a) {
 
   def marked: Rep[Parameter]
 
 }
 
-//TODO === Parameter <: ....
-
-trait MarkedDB[Parameter, T <: Serializable, Ts <: MarkedTable[Parameter, T]] extends DB[T, Ts] {
+trait MarkedDB[Parameter, T <: WithId, Ts <: MarkedTable[Parameter, T]] extends DB[T, Ts] {
 
   def search (searchTerm: Parameter): IO[Throwable, List[T]]
 

@@ -4,6 +4,12 @@ import zio.http.Response
 import zio.json.{DecoderOps, DeriveJsonDecoder, DeriveJsonEncoder, EncoderOps, JsonDecoder, JsonEncoder}
 import zio.{IO, ZIO}
 
+import java.time.LocalDate
+
+/*
+ * Object with methods for JSON encoding and decoding. It processes Books, Booleans and Strings.
+ */
+
 object JSON {
 
   // Encoding methods
@@ -35,17 +41,15 @@ object JSON {
     }
 
   def decodeBoolean(response: Response): IO[Throwable, Boolean] =
-    response.body.asString.flatMap {
-      case "true" => ZIO.succeed(true)
-      case "false" => ZIO.succeed(false)
-      case _ => ZIO.fail(new Throwable)
-    }
+    response.body.asString.flatMap(text => text.toBooleanOption match {
+      case None => ZIO.fail(new Throwable)
+      case Some(b) => ZIO.succeed(b)
+    })
 
   def decodeStrings(strings: String): Array[String] =
     JsonDecoder[Array[String]].decodeJson(strings) match {
       case Left(_) => Array()
       case Right(arr) => arr
     }
-
 
 }

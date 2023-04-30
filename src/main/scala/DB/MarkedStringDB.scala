@@ -1,18 +1,23 @@
 package DB
 
-import slick.jdbc.H2Profile.api._
+import Common.WithId
+import slick.jdbc.PostgresProfile.api._
 import zio.{IO, ZIO}
 
-trait MarkedStringDB[T <: Serializable, Ts <: MarkedTable[String, T]] extends MarkedDB[String, T, Ts] {
+/*
+ *  MarkedDB for marked of String type.
+ */
 
-  override def search (searchTerm: String): IO[Throwable, List[T]] = for {
-    query <- ZIO.succeed (tableQuery.filter (_.marked === searchTerm).result)
-    result <- ZIO.fromFuture(implicit ec => db.run(query))
-  } yield result.toList
+trait MarkedStringDB[T <: WithId, Ts <: MarkedTable[String, T]] extends MarkedDB[String, T, Ts] {
 
-  override def removeAll(parameter: String): IO[Throwable, Unit] = for {
-    query <- ZIO.succeed(tableQuery.filter(_.marked =!= parameter).result)
-    _ <- ZIO.fromFuture(implicit ec => db.run(query))
-  } yield ()
+  override def search(searchTerm: String): IO[Throwable, List[T]] = {
+    val query = tableQuery.filter(_.marked === searchTerm).result
+    ZIO.fromFuture(implicit ec => db.run(query)).map(_.toList)
+  }
+
+  override def removeAll(parameter: String): IO[Throwable, Unit] = {
+    val query = tableQuery.filter(_.marked === parameter).delete
+    ZIO.fromFuture(implicit ec => db.run(query)) *> ZIO.unit
+  }
 
 }

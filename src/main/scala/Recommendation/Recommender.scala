@@ -12,10 +12,16 @@ import zio.{IO, ZIO, ZLayer}
 import scala.collection.mutable.ArraySeq
 import java.util.Properties
 
+/*
+ * Recommender of books using spark.ml that reads from a RatingDB
+ */
+
 class Recommender(bookdb: BookDB) {
+  // Number of recommendations that ask the algorithm
   val NRecommendations: Int = 50
 
 
+  // Create SparkSession.
   val sconf: SparkConf = new SparkConf()
     .setMaster("local[1]")
     .setAppName("Recommender")
@@ -23,35 +29,29 @@ class Recommender(bookdb: BookDB) {
   val spark: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
 
 
-
+  // Read RatingDB and construct ALSModel.
   val connectionProperties: Properties = new Properties()
-  connectionProperties.put("driver", "org.h2.Driver")
-  //connectionProperties.put("user", "username")
-  //connectionProperties.put("password", "password")
-  val df: DataFrame = spark.read.jdbc("jdbc:h2:./db/ratingsdb", "books", connectionProperties)
+  connectionProperties.put("driver", "org.postgres.Driver")
+  val df: DataFrame = spark.read.jdbc("jdbc:postgres:./db/ratingsdb", "books", connectionProperties)
   val model: ALSModel = new ALS().fit(prepare(df))
 
 
   case class User(user: Int)
   import spark.implicits._
   def giveRecommendation(user: Int): IO[Throwable, Array[Book]] = for{
-    //df.filter(row => row.getInt(0) == user).isEmpty
     rec <-
-      if(true) ZIO.succeed(model.recommendForAllUsers(1))
-      else ZIO.succeed(model.recommendForUserSubset(Seq(User(user)).toDS, 1))   //scala.math.min(50, df.collect().length)
-    //_ <- printLine("2 " + parser(rec).toList)
-    books <- bookdb.getBooks(List(0))
-    //books <- bookdb.getBooks(rec.collect().map(_.getInt(1)).toList)
-    //books <- ZIO.foreach(rec.collect().map(_.getInt(1)))(row => bookdb.find(row)).map(_.flatten)
-  } yield books.toArray // why toList???
+      if(true) ZIO.succeed(model.recommendForAllUsers(NRecommendations))
+      else ZIO.succeed(model.recommendForUserSubset(Seq(User(user)).toDS, NRecommendations))
+    books <- bookdb.findList(rec.collect().map(_.getInt(1)).toList)
+  } yield books.toArray
 
 
   def prepare(df: DataFrame): DataFrame = df
 
   /*
-   *  Class model.recommendForUserSubset gives a DataFrame with schema ("user", "recommendation")
-   *  where the items in recommendation are ArraySeq[GenericRowWithSchema] with schema ("item", "rating")
-   *  parser(df) gives an Array extracting the int in "item"
+   *  Method model.recommendForUserSubset gives a DataFrame with schema ("user", "recommendation")
+   *  where the items in recommendation are ArraySeq[GenericRowWithSchema] with schema ("item", "rating").
+   *  parser(df) gives an Array extracting the int in "item".
    */
   def parser(df: DataFrame): Array[Int] =
     df.collect()

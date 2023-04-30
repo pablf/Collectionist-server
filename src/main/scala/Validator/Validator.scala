@@ -1,14 +1,15 @@
 package Validator
 
+import Common.WithId
 import DB.{MarkedStringDB, MarkedTable}
 import zio.ZIO
 
 /*
-Opens database, check if a parameter exists and validates if another parameter has the same value
-Also create a new register (First, Second) in database
-Main use: (User, Password)
+ * A Validator opens a database, checks if a parameter exists and validates if another parameter has the same value.
+ * It also creates a new register (First, Second) in database.
+ * Main use with UserDB and (User, Password).
  */
-trait Validator[T <: Serializable, Ts <: MarkedTable[String, T], DB <: MarkedStringDB[T,Ts]] {
+trait Validator[T <: WithId, Ts <: MarkedTable[String, T], DB <: MarkedStringDB[T,Ts]] {
   val db: DB
 
   def existFirst(tag: String): ZIO[Any, Throwable, Boolean]

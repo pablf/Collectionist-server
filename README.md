@@ -31,7 +31,7 @@ some utilities like JSON encoding. The DB module takes care of all the databases
 Furthermore, Collectionist has three microservices to enrich the user experience: Recommendation, Spelling and Validator modules.
 
 <p align="center">
-<img src="https://user-images.githubusercontent.com/131800808/235464599-255aad41-55f8-426a-a51b-044c89a076ee.svg" width=50% height=50% >
+<img src="https://user-images.githubusercontent.com/131800808/235464599-255aad41-55f8-426a-a51b-044c89a076ee.svg" width=30% height=30% >
 </p>
 
 ### Common

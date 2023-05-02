@@ -13,7 +13,7 @@ class WordDB() extends scala.AnyRef {
   case class Word(word: String, prob: Int)
 
   val client : MongoClient = MongoClient("mongodb://localhost:27017/")
-  val db : MongoDatabase = client.getDatabase("mydb")
+  val db : MongoDatabase = client.getDatabase("words")
   val collection: MongoCollection[Word] = db.getCollection("words")
 
   /*

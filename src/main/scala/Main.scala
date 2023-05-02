@@ -108,7 +108,7 @@ object Main extends ZIOAppDefault {
 
   }
 
-  val book0: HttpApp[BookDB, Throwable] =
+  val book0: HttpApp[BookDB & SpellingChecker, Throwable] =
     Http.collectZIO[Request] {
 
       case Method.GET -> !! / "db" / "book" / "addTo" / list / userId / bookId =>
@@ -128,13 +128,16 @@ object Main extends ZIOAppDefault {
       case Method.GET -> !! / "db" / "book" / "search" / tag =>
         for {
           bookdb <- ZIO.service[BookDB]
-          result <- bookdb.generalSearch(tag)
+          spellChecker <- ZIO.service[SpellingChecker]
+          checkedTag <- spellChecker.suggest(tag)
+          result <- bookdb.generalSearch(checkedTag)
         } yield Response.json(JSON.encodeBooks(result))
 
       case Method.GET -> !! / "db" / "book" / "advancedsearch" / itemsAS / tagsAS =>
         for {
           bookdb <- ZIO.service[BookDB]
-          result <- bookdb.advancedSearch(JSON.decodeStrings(itemsAS).toList, JSON.decodeStrings(tagsAS).toList)
+          result <- bookdb
+            .advancedSearch(JSON.decodeStrings(itemsAS).toList, JSON.decodeStrings(tagsAS).toList)
         } yield Response.json(JSON.encodeBooks(result))
 
     }
@@ -180,17 +183,6 @@ object Main extends ZIOAppDefault {
             userdb.ban(user.toInt, daysLate)
           }
         } yield Response.ok
-
-      case Method.POST -> !! / "db" / "book" / "add" / book => for {
-        bookdb <- ZIO.service[BookDB]
-        _ <- bookdb.add(JSON.decodeBook(book))
-      } yield Response.ok
-
-      case Method.DELETE -> !! / "db" / "book" / name =>
-        for {
-          bookdb <- ZIO.service[BookDB]
-          _ <- bookdb.removeAll(name)
-        } yield Response.ok
     }
 
   val book300: HttpApp[BookDB, Throwable] =
@@ -206,18 +198,6 @@ object Main extends ZIOAppDefault {
           bookdb <- ZIO.service[BookDB]
           _ <- bookdb.removeAll(name)
         } yield Response.ok
-
-      case Method.GET -> !! / "db" / "book" / "search" / tag =>
-        for {
-          bookdb <- ZIO.service[BookDB]
-          result <- bookdb.generalSearch(tag)
-        } yield Response.json(JSON.encodeBooks(result))
-
-      case Method.GET -> !! / "db" / "book" / "advancedsearch" / itemsAS / tagsAS =>
-        for {
-          bookdb <- ZIO.service[BookDB]
-          result <- bookdb.advancedSearch(JSON.decodeStrings(itemsAS).toList, JSON.decodeStrings(tagsAS).toList)
-        } yield Response.json(JSON.encodeBooks(result))
 
     }
 
